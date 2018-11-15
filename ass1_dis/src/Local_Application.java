@@ -4,6 +4,7 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
+import com.amazonaws.services.ec2.model.IamInstanceProfileSpecification;
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.InstanceType;
 import com.amazonaws.services.ec2.model.RunInstancesRequest;
@@ -36,6 +37,8 @@ import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 
+import org.apache.commons.codec.binary.Base64;
+
 public class Local_Application {
 	static AWSCredentialsProvider credentialsProvider;
 	static AmazonEC2 ec2;
@@ -44,7 +47,7 @@ public class Local_Application {
 	static String file_nameURL;
 	static String bucketName;
 	static boolean ManegerActive = false;
-	static List<Instance> instances;
+	static List<Instance> instanceManager;
 	static String key;
 	static String myQueueUrlManToApp;
 	
@@ -90,12 +93,18 @@ public class Local_Application {
 	public static void CreateManager() {
 		 try {
 				 if(!ManegerActive()) {
-					 
+
+                     IamInstanceProfileSpecification instanceP = new IamInstanceProfileSpecification();
+                     instanceP.setArn("arn:aws:iam::683725846471:instance-profile/ManagerRole");
 		            // Basic 32-bit Amazon Linux AMI 1.0 (AMI Id: ami-08728661)
-		            RunInstancesRequest request = new RunInstancesRequest("ami-8c1fece5", 1, 1);
-		            request.setInstanceType(InstanceType.T2Nano.toString()); //hard ware 
-		            instances = ec2.runInstances(request).getReservation().getInstances();
-		            System.out.println("Launch instances: " + instances);
+		            RunInstancesRequest request = new RunInstancesRequest("ami-76f0061f", 1, 1);
+		            request.setInstanceType(InstanceType.T2Nano.toString()); //hard ware
+                    request.setUserData(getManagerUserData());
+                    request.withSecurityGroups("kerenshira");
+                    request.withKeyName("theQueen");
+                    request.setIamInstanceProfile(instanceP);
+                    instanceManager = ec2.runInstances(request).getReservation().getInstances();
+		            System.out.println("Launch instances: " + instanceManager);
 		            ManegerActive = true;
 				 }
 		 
@@ -107,6 +116,19 @@ public class Local_Application {
 	        }
 		 
 	}
+
+	public static String getManagerUserData(){
+        StringBuilder managerBuild = new StringBuilder();
+        managerBuild.append("#!/bin/bash\n");
+        managerBuild.append("sudo su\n");
+        managerBuild.append("yum -y install java-1.8.0 \n");
+        managerBuild.append("alternatives --remove java /usr/lib/jvm/jre-1.7.0-openjdk.x86_64/bin/java\n");
+        managerBuild.append("aws s3 cp s3://"+bucketName+"/manager.zip  manager.zip\n");
+        managerBuild.append("unzip manager.zip\n");
+        managerBuild.append("java -jar manager.jar\n");
+
+        return new String(Base64.encodeBase64(managerBuild.toString().getBytes()));
+    }
 	
 	public static void CreateDirectory(String file_dir) {        
         bucketName =
