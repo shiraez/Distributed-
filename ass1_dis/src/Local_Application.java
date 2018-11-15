@@ -110,7 +110,7 @@ public class Local_Application {
 	
 	public static void CreateDirectory(String file_dir) {        
         bucketName =
-                credentialsProvider.getCredentials().getAWSAccessKeyId() + "_" + file_dir.replace('\\', '_').replace('/','_').replace(':', '_');
+                credentialsProvider.getCredentials().getAWSAccessKeyId();
         
         try {
             /*
@@ -168,7 +168,7 @@ public class Local_Application {
 	}
 	
 	public static void createQueueManToApp() { 
-        CreateQueueRequest createQueueRequestManToApp = new CreateQueueRequest("ManToApp"+ UUID.randomUUID());
+        CreateQueueRequest createQueueRequestManToApp = new CreateQueueRequest("ManToApp");
         myQueueUrlManToApp = sqs.createQueue(createQueueRequestManToApp).getQueueUrl();
         
        

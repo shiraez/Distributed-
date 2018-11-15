@@ -8,13 +8,15 @@ import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.InstanceType;
 import com.amazonaws.services.ec2.model.RunInstancesRequest;
 import java.io.BufferedReader;
-
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.Map.Entry;
 import com.amazonaws.AmazonClientException;
@@ -41,7 +43,13 @@ public class Manager {
 	static AmazonEC2 ec2;
 	static AmazonS3 s3;
 	static AmazonSQS sqs;
-	
+	static String myQueueUrlManToApp;
+	static String myQueueUrlAppToMan;
+	static String bucketName;
+	static String key;
+	private static String myQueueUrlManToWorker;
+	private static String myQueueUrlWorkerToMan;
+
 	public static void main(String[] args) throws Exception {
         init();
         downloadsImage();
@@ -82,9 +90,70 @@ public class Manager {
 	}
 
 	private static void downloadsImage() {
-		// TODO Auto-generated method stub
+		System.out.println("Downloading an object");
+		S3Object object = s3.getObject(new GetObjectRequest(bucketName, key));
+		System.out.println("Content-Type: "  + object.getObjectMetadata().getContentType());
+		displayTextInputStream(object.getObjectContent());
 		
 	}
+
+	public static void createQueueManToApp() {
+		CreateQueueRequest createQueueRequestManToApp = new CreateQueueRequest("ManToApp");
+		myQueueUrlManToApp =  sqs.createQueue(createQueueRequestManToApp).getQueueUrl();
+
+	}
+
+	public static void createQueueAppToMan() {
+		CreateQueueRequest createQueueRequestAppToMan = new CreateQueueRequest("AppToMan");
+		myQueueUrlAppToMan = sqs.createQueue(createQueueRequestAppToMan).getQueueUrl();
+
+	}
+
+	private static void createQueueWorkerToMan() {
+		CreateQueueRequest createQueueRequestWorkerToMan = new CreateQueueRequest("ManToApp");
+		myQueueUrlWorkerToMan =  sqs.createQueue(createQueueRequestWorkerToMan).getQueueUrl();
+	}
+
+	private static void createQueueManToWorker() {
+		CreateQueueRequest createQueueRequestManToWorker = new CreateQueueRequest("ManToApp");
+		myQueueUrlManToWorker =  sqs.createQueue(createQueueRequestManToWorker).getQueueUrl();
+	}
+
+	public static boolean reciveMessage() {
+		ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(myQueueUrlAppToMan);
+		List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
+		String pattern = "new task (\\d*)_(.*)";
+		Pattern r = Pattern.compile(pattern);
+
+		myWait();
+		for (Message message : messages) {
+			Matcher m = r.matcher(message.getBody());
+			int numOfImagesPerWorker = Integer.parseInt(m.group(0));
+			key = m.group(1);
+			//TODO add Thread
+			String messageRecieptHandle = message.getReceiptHandle();
+			sqs.deleteMessage(new DeleteMessageRequest(myQueueUrlAppToMan, messageRecieptHandle));
+			return true;
+		}
+		return false;
+	}
+
+	private static void myWait() {
+	}
+
+	private static void displayTextInputStream(InputStream input) {
+		BufferedReader reader = new BufferedReader(new InputStreamReader(input));
+		String line = "";
+		int numWorker = 0;
+		try {
+			while ((line = reader.readLine()) != null) {
+//				if()
+			}
+			System.out.println();
+		}
+		catch (Exception e){}
+	}
+
 
 	private static void init() {
 		AWSCredentialsProvider credentialsProvider = new AWSStaticCredentialsProvider(new ProfileCredentialsProvider().getCredentials());
@@ -100,7 +169,16 @@ public class Manager {
                 .withCredentials(credentialsProvider)
                 .withRegion("us-west-2")
                 .build();
-		
+
+		bucketName =
+				credentialsProvider.getCredentials().getAWSAccessKeyId();
+		createQueueManToApp();
+		createQueueAppToMan();
+		createQueueManToWorker();
+		createQueueWorkerToMan();
+
 	}
+
+
 
 }
