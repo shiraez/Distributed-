@@ -34,9 +34,9 @@ import com.amazonaws.services.sqs.model.DeleteQueueRequest;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
-import net.sourceforge.javaocr.ocrPlugins.mseOCR.OCRScanner;
-import net.sourceforge.javaocr.scanner.accuracy.OCRComp;
-import net.sourceforge.javaocr.scanner.accuracy.OCRIdentification;
+//import net.sourceforge.javaocr.ocrPlugins.mseOCR.OCRScanner;
+//import net.sourceforge.javaocr.scanner.accuracy.OCRComp;
+//import net.sourceforge.javaocr.scanner.accuracy.OCRIdentification;
 
 
 public class Worker {
