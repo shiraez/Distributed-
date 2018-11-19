@@ -51,8 +51,9 @@ public class Manager {
 	static String key = "";
 	private static String myQueueUrlManToWorker;
 	private static String myQueueUrlWorkerToMan;
+    private static String addToQueueName = "";
 
-	public static void main(String[] args) throws Exception {
+    public static void main(String[] args) throws Exception {
         init();
         
     }
@@ -60,12 +61,27 @@ public class Manager {
 
 
 
-
 	public static void createQueueAppToMan() {
-		CreateQueueRequest createQueueRequestAppToMan = new CreateQueueRequest("AppToMan");
+		CreateQueueRequest createQueueRequestAppToMan = new CreateQueueRequest("AppToMan" +addToQueueName);
 		myQueueUrlAppToMan = sqs.createQueue(createQueueRequestAppToMan).getQueueUrl();
 
 	}
+
+    private static void createQueueManToWorker() {
+        CreateQueueRequest createQueueRequestManToWorker = new CreateQueueRequest("ManToWorker" + addToQueueName);
+        myQueueUrlManToWorker =  sqs.createQueue(createQueueRequestManToWorker).getQueueUrl();
+    }
+
+    public static void createQueueManToApp() {
+        CreateQueueRequest createQueueRequestManToApp = new CreateQueueRequest("ManToApp" + addToQueueName);
+        myQueueUrlManToApp =  sqs.createQueue(createQueueRequestManToApp).getQueueUrl();
+
+    }
+
+    private static void createQueueWorkerToMan() {
+        CreateQueueRequest createQueueRequestWorkerToMan = new CreateQueueRequest("WorkerToMan" + addToQueueName);
+        myQueueUrlWorkerToMan =  sqs.createQueue(createQueueRequestWorkerToMan).getQueueUrl();
+    }
 
 
 
@@ -84,7 +100,7 @@ public class Manager {
 			System.out.println("numOfImagesPerWorker: " + numOfImagesPerWorker);
 			key = m.group(2);
 			System.out.println("key: " + key);
-			TaskManager new_task = new TaskManager(ec2, s3, sqs, bucketName, key, numOfImagesPerWorker);
+			TaskManager new_task = new TaskManager(ec2, s3, sqs, bucketName, key, numOfImagesPerWorker, myQueueUrlManToWorker, myQueueUrlWorkerToMan, myQueueUrlManToApp);
 			new Thread(new_task).start();
 			String messageRecieptHandle = message.getReceiptHandle();
 			sqs.deleteMessage(new DeleteMessageRequest(myQueueUrlAppToMan, messageRecieptHandle));
@@ -118,6 +134,9 @@ public class Manager {
 		bucketName =
 				credentialsProvider.getCredentials().getAWSAccessKeyId();
 		createQueueAppToMan();
+        createQueueManToWorker();
+        createQueueManToApp();
+        createQueueWorkerToMan();
 
 		while(true){
 			reciveMessageFromLocal();

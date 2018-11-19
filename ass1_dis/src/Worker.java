@@ -77,9 +77,9 @@ public class Worker {
     }
 
     public static void CreatesSQSqueue() {
-        CreateQueueRequest createQueueRequestWorkerToManager = new CreateQueueRequest("WorkerToManager"+ addToQueueName);
+        CreateQueueRequest createQueueRequestWorkerToManager = new CreateQueueRequest("WorkerToMan"+ addToQueueName);
         queueWorkerToManager = sqs.createQueue(createQueueRequestWorkerToManager).getQueueUrl();
-        createQueueRequestWorkerToManager = new CreateQueueRequest("ManagerToWorker"+ addToQueueName);
+        createQueueRequestWorkerToManager = new CreateQueueRequest("ManToWorker"+ addToQueueName);
         queueManagerToWorker = sqs.createQueue(createQueueRequestWorkerToManager).getQueueUrl();
     }
 
@@ -122,7 +122,7 @@ String txt = "";
     }
 
     public static void sendMessageToManager(String imageURL, String txt) {
-        sqs.sendMessage(new SendMessageRequest(queueWorkerToManager, "finish task: " + imageURL +","+ txt));
+        sqs.sendMessage(new SendMessageRequest(queueWorkerToManager, "done image task " + imageURL +","+ txt));
     }
 
 }

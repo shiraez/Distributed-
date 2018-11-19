@@ -4,19 +4,21 @@ import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.model.IamInstanceProfileSpecification;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.sqs.AmazonSQS;
-import com.amazonaws.services.sqs.model.CreateQueueRequest;
+import com.amazonaws.services.sqs.model.*;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.List;
+import java.util.Map;
 
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.InstanceType;
 import com.amazonaws.services.ec2.model.RunInstancesRequest;
-import com.amazonaws.services.sqs.model.SendMessageRequest;
 import org.apache.commons.codec.binary.Base64;
 
 public class TaskManager implements Runnable{
@@ -32,32 +34,36 @@ public class TaskManager implements Runnable{
     private static String myQueueUrlManToWorker;
     private static String myQueueUrlWorkerToMan;
     static int numberOfURLS;
+    private static String addToQueueName = "";
+    static String fileName;
 
-    public TaskManager(AmazonEC2 ec2, AmazonS3 s3, AmazonSQS sqs, String bucketName, String key, int numOfTaskPerWorker) {
+    public TaskManager(AmazonEC2 ec2, AmazonS3 s3, AmazonSQS sqs, String bucketName, String key,
+                       int numOfTaskPerWorker, String myQueueUrlManToWorker, String myQueueUrlWorkerToMan,
+                       String myQueueUrlManToApp) {
         this.ec2 = ec2;
         this.s3 = s3;
         this.sqs = sqs;
         this.bucketName = bucketName;
         this.key = key;
         this.numOfTaskPerWorker = numOfTaskPerWorker;
+        this.myQueueUrlWorkerToMan = myQueueUrlWorkerToMan;
+        this.myQueueUrlManToApp = myQueueUrlManToApp;
+        this.myQueueUrlManToWorker = myQueueUrlManToWorker;
 
     }
 
 
 
-    private static void createQueueManToWorker() {
-        CreateQueueRequest createQueueRequestManToWorker = new CreateQueueRequest("ManToApp");
-        myQueueUrlManToWorker =  sqs.createQueue(createQueueRequestManToWorker).getQueueUrl();
-    }
 
-    public static void createQueueManToApp() {
-        CreateQueueRequest createQueueRequestManToApp = new CreateQueueRequest("ManToApp");
-        myQueueUrlManToApp =  sqs.createQueue(createQueueRequestManToApp).getQueueUrl();
-
-    }
 
     private static void UploadFileToS3() {
-        // TODO Auto-generated method stub
+        System.out.println("Uploading a new object to S3 from a file\n");
+        File file = new File("summary" + key);
+        key = file.getName().replace('\\', '_').replace('/','_').replace(':', '_');
+        PutObjectRequest req = new PutObjectRequest(bucketName, key, file);
+        s3.putObject(req);
+
+
 
     }
 
@@ -136,19 +142,38 @@ public class TaskManager implements Runnable{
         return new String(Base64.encodeBase64(managerBuild.toString().getBytes()));
     }
 
-    private static void createQueueWorkerToMan() {
-        CreateQueueRequest createQueueRequestWorkerToMan = new CreateQueueRequest("ManToApp");
-        myQueueUrlWorkerToMan =  sqs.createQueue(createQueueRequestWorkerToMan).getQueueUrl();
-    }
+
 
     @Override
     public void run() {
-        createQueueManToWorker();
-        createQueueWorkerToMan();
         downloadsImage();
         readMessages();
+        getRespons();
         createSummary();
         UploadFileToS3();
 
+    }
+
+    private void getRespons() {
+        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(myQueueUrlManToApp);
+        List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
+        myWait();
+        int munOfAns = 0;
+        for (Message message : messages) {
+            if(message.getBody().startsWith("done image task")) {
+                for (Map.Entry<String, String> entry : message.getAttributes().entrySet()) {
+                    System.out.println("  Attribute");
+                    System.out.println("    Name:  " + entry.getKey());
+                    System.out.println("    Value: " + entry.getValue());
+                }
+                String messageRecieptHandle = message.getReceiptHandle();
+                sqs.deleteMessage(new DeleteMessageRequest(myQueueUrlManToApp, messageRecieptHandle));
+                
+            }
+        }
+        
+    }
+
+    private void myWait() {
     }
 }

@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.List;
-import java.util.UUID;
 import java.util.Map.Entry;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.AmazonS3;
@@ -50,6 +49,7 @@ public class Local_Application {
 	static List<Instance> instanceManager;
 	static String key;
 	static String myQueueUrlManToApp;
+	static String addToQueueName = "";
 	
 	
 	public static void main(String[] args) throws Exception {
@@ -182,7 +182,7 @@ public class Local_Application {
 	}
 	
 	public static void sentMassegeToManager(int numOfImgesForWorker) {
-        CreateQueueRequest createQueueRequestAppToMang = new CreateQueueRequest("AppToMan"+ UUID.randomUUID());
+        CreateQueueRequest createQueueRequestAppToMang = new CreateQueueRequest("AppToMan"+ addToQueueName);
         String myQueueUrlAppToMang = sqs.createQueue(createQueueRequestAppToMang).getQueueUrl();
         createQueueManToApp();
         sqs.sendMessage(new SendMessageRequest(myQueueUrlAppToMang, "new task " + numOfImgesForWorker+"_"+key));
@@ -190,7 +190,7 @@ public class Local_Application {
 	}
 	
 	public static void createQueueManToApp() { 
-        CreateQueueRequest createQueueRequestManToApp = new CreateQueueRequest("ManToApp");
+        CreateQueueRequest createQueueRequestManToApp = new CreateQueueRequest("ManToApp" + addToQueueName);
         myQueueUrlManToApp = sqs.createQueue(createQueueRequestManToApp).getQueueUrl();
         
        
