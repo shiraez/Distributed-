@@ -4,41 +4,22 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
-import com.amazonaws.services.ec2.model.Instance;
-import com.amazonaws.services.ec2.model.InstanceType;
-import com.amazonaws.services.ec2.model.RunInstancesRequest;
-import java.io.BufferedReader;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.Map.Entry;
+import java.util.stream.Collectors;
+
 import com.amazonaws.AmazonClientException;
+import com.amazonaws.services.ec2.model.TerminateInstancesRequest;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.Bucket;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import com.amazonaws.services.sqs.model.CreateQueueRequest;
 import com.amazonaws.services.sqs.model.DeleteMessageRequest;
-import com.amazonaws.services.sqs.model.DeleteQueueRequest;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
-import com.amazonaws.services.sqs.model.SendMessageRequest;
-import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.collections.bag.SynchronizedSortedBag;
 
 public class Manager {
 	static AWSCredentialsProvider credentialsProvider;
@@ -52,6 +33,7 @@ public class Manager {
 	private static String myQueueUrlManToWorker;
 	private static String myQueueUrlWorkerToMan;
     private static String addToQueueName = "";
+    private static List<TaskManager> tasks;
 
     public static void main(String[] args) throws Exception {
         init();
@@ -96,12 +78,15 @@ public class Manager {
 		myWait();
 		for (Message message : messages) {
 			Matcher m = r.matcher(message.getBody());
+            m.matches();
 			int numOfImagesPerWorker = Integer.parseInt(m.group(1));
 			System.out.println("numOfImagesPerWorker: " + numOfImagesPerWorker);
 			key = m.group(2);
 			System.out.println("key: " + key);
 			TaskManager new_task = new TaskManager(ec2, s3, sqs, bucketName, key, numOfImagesPerWorker, myQueueUrlManToWorker, myQueueUrlWorkerToMan, myQueueUrlManToApp);
-			new Thread(new_task).start();
+			Thread task =new Thread(new_task);
+			task.start();
+            tasks.add(new_task);
 			String messageRecieptHandle = message.getReceiptHandle();
 			sqs.deleteMessage(new DeleteMessageRequest(myQueueUrlAppToMan, messageRecieptHandle));
 			return true;
@@ -141,12 +126,33 @@ public class Manager {
 		while(true){
 			reciveMessageFromLocal();
 
-
+			if(allTaskEnd()){
+			    killWorker();
+            }
 
 		}
 
-	}
+    }
 
+    public static boolean allTaskEnd(){
+        for(TaskManager task:tasks){
+            if(!task.endTask){
+                return false;
+            }
+        }
+        return true;
+
+    }
+
+
+    private static void killWorker() {
+        for (TaskManager task: tasks){
+            List<String> list_ins = task.workers.stream().map(p->p.getInstanceId()).collect(Collectors.toList());
+            TerminateInstancesRequest terminateRequest = new TerminateInstancesRequest(list_ins);
+                ec2.terminateInstances(terminateRequest);
+        }
+        tasks.clear();
+    }
 
 
 }

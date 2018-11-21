@@ -17,16 +17,13 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.Bucket;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import com.amazonaws.services.sqs.model.CreateQueueRequest;
@@ -135,14 +132,7 @@ public class Local_Application {
                 credentialsProvider.getCredentials().getAWSAccessKeyId();
         
         try {
-            /*
-             * Create a new S3 bucket - Amazon S3 bucket names are globally unique,
-             * so once a bucket name has been taken by any user, you can't create
-             * another bucket with that same name.
-             *
-             * You can optionally specify a location for your bucket if you want to
-             * keep your data closer to your applications or users.
-             */
+
             System.out.println("Creating bucket " + bucketName + "\n");
             s3.createBucket(bucketName);
  
@@ -200,28 +190,45 @@ public class Local_Application {
          List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
          myWait();
          for (Message message : messages) {
-             System.out.println("  Message");
-             System.out.println("    MessageId:     " + message.getMessageId());
-             System.out.println("    ReceiptHandle: " + message.getReceiptHandle());
-             System.out.println("    MD5OfBody:     " + message.getMD5OfBody());
-             System.out.println("    Body:          " + message.getBody());
-             for (Entry<String, String> entry : message.getAttributes().entrySet()) {
-                 System.out.println("  Attribute");
-                 System.out.println("    Name:  " + entry.getKey());
-                 System.out.println("    Value: " + entry.getValue());
+             if (message.getBody().startsWith("done task answer")) {
+                 downloadsSummary();
+                 for (Entry<String, String> entry : message.getAttributes().entrySet()) {
+                     System.out.println("  Attribute");
+                     System.out.println("    Name:  " + entry.getKey());
+                     System.out.println("    Value: " + entry.getValue());
+                 }
+                 String messageRecieptHandle = message.getReceiptHandle();
+                 sqs.deleteMessage(new DeleteMessageRequest(myQueueUrlManToApp, messageRecieptHandle));
+                 return true;
              }
-             String messageRecieptHandle = message.getReceiptHandle();
-             sqs.deleteMessage(new DeleteMessageRequest(myQueueUrlManToApp, messageRecieptHandle));
-             return true;
          }
          return false;
 	}
 	
 	public static void downloadsSummary() {
-		
+        System.out.println("Downloading an object");
+        S3Object object = s3.getObject(new GetObjectRequest(bucketName, key));
+        System.out.println("Content-Type: "  + object.getObjectMetadata().getContentType());
+        BufferedReader reader = new BufferedReader(new InputStreamReader(object.getObjectContent()));
+        createHtmlFile(reader);
 	}
-	
-	private static void myWait() {
+
+    private static void createHtmlFile(BufferedReader reader) {
+//        File htmlTemplateFile = new File("path/template.html");
+//        String htmlString = FileUtils.readFileToString(htmlTemplateFile);
+//        String title = "New Page";
+//        String body = "This is Body";
+//        htmlString = htmlString.replace("$title", title);
+//        htmlString = htmlString.replace("$body", body);
+//        File newHtmlFile = new File("path/new.html");
+//        FileUtils.writeStringToFile(newHtmlFile, htmlString);
+    }
+
+
+    private static void readFileFromS3(S3ObjectInputStream objectContent) {
+    }
+
+    private static void myWait() {
 		// TODO Auto-generated method stub
 		
 	}

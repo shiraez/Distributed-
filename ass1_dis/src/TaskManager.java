@@ -9,17 +9,18 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.model.*;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.InstanceType;
 import com.amazonaws.services.ec2.model.RunInstancesRequest;
 import org.apache.commons.codec.binary.Base64;
+import org.apache.xmlbeans.impl.xb.xsdschema.Public;
 
 public class TaskManager implements Runnable{
     static AmazonEC2 ec2;
@@ -30,12 +31,13 @@ public class TaskManager implements Runnable{
     static String bucketName;
     static String key = "";
     static int numOfTaskPerWorker;
-    static List<Instance> workers;
+    static public List<Instance> workers = new ArrayList<>();
     private static String myQueueUrlManToWorker;
     private static String myQueueUrlWorkerToMan;
     static int numberOfURLS;
     private static String addToQueueName = "";
     static String fileName;
+    public boolean endTask = false;
 
     public TaskManager(AmazonEC2 ec2, AmazonS3 s3, AmazonSQS sqs, String bucketName, String key,
                        int numOfTaskPerWorker, String myQueueUrlManToWorker, String myQueueUrlWorkerToMan,
@@ -58,7 +60,7 @@ public class TaskManager implements Runnable{
 
     private static void UploadFileToS3() {
         System.out.println("Uploading a new object to S3 from a file\n");
-        File file = new File("summary" + key);
+        File file = new File("answer" + key);
         key = file.getName().replace('\\', '_').replace('/','_').replace(':', '_');
         PutObjectRequest req = new PutObjectRequest(bucketName, key, file);
         s3.putObject(req);
@@ -67,15 +69,9 @@ public class TaskManager implements Runnable{
 
     }
 
-    private static boolean readMessages() {
-        // TODO Auto-generated method stub
-        return false;
-    }
 
-    private static boolean createSummary() {
-        // TODO Auto-generated method stub
-        return false;
-    }
+
+
 
 
 
@@ -147,29 +143,45 @@ public class TaskManager implements Runnable{
     @Override
     public void run() {
         downloadsImage();
-        readMessages();
         getRespons();
-        createSummary();
         UploadFileToS3();
+        sentMassageToLocal();
 
     }
 
+    private void sentMassageToLocal() {
+
+        sqs.sendMessage(new SendMessageRequest(myQueueUrlManToApp, "done task " + "answer"+key));
+    }
+
     private void getRespons() {
-        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(myQueueUrlManToApp);
-        List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
-        myWait();
-        int munOfAns = 0;
-        for (Message message : messages) {
-            if(message.getBody().startsWith("done image task")) {
-                for (Map.Entry<String, String> entry : message.getAttributes().entrySet()) {
-                    System.out.println("  Attribute");
-                    System.out.println("    Name:  " + entry.getKey());
-                    System.out.println("    Value: " + entry.getValue());
+        int numOfAns = 0;
+        String pattern = "done image task (.*) (.*)";
+        Pattern r = Pattern.compile(pattern);
+        try {
+            PrintWriter writer = new PrintWriter("answer" + key, "UTF-8");
+            while(numberOfURLS > numOfAns) {
+                ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(myQueueUrlManToApp);
+                List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
+                myWait();
+                for (Message message : messages) {
+                    if (message.getBody().startsWith("done image task")) {
+                        Matcher m = r.matcher(message.getBody());
+                        m.matches();
+                        String url = m.group(1);
+                        String text = m.group(2);
+                        writer.write(url);
+                        writer.write("------\n");
+                        numOfAns++;
+                        String messageRecieptHandle = message.getReceiptHandle();
+                        sqs.deleteMessage(new DeleteMessageRequest(myQueueUrlManToApp, messageRecieptHandle));
+
+                    }
                 }
-                String messageRecieptHandle = message.getReceiptHandle();
-                sqs.deleteMessage(new DeleteMessageRequest(myQueueUrlManToApp, messageRecieptHandle));
-                
             }
+        }
+        catch (FileNotFoundException | UnsupportedEncodingException e) {
+            e.printStackTrace();
         }
         
     }
